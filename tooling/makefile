@@ -2,7 +2,7 @@
 # cd tooling
 # ./xpack/bin/make
 
-SIMUL_TOP_LEVEL_MODULE = top_display
+SIMUL_TOP_LEVEL_MODULE = cpu_tb
 SIMUL_LIB = work
 # 1 (yes) -> override timescale
 # 0 (no)  -> do NOT override timescale
@@ -12,6 +12,7 @@ SIMUL_RUN_TCL_SCRIPT = ./config/run.tcl
 SIMUL_WAVEFORM_MACRO = ./config/waveform-define.do
 SIMUL_WAVEFORM_FILE = ./waveform.wlf
 SIMUL_VLOG_LOG_FILE = ./vlog_compile.log
+ALTERA_MF_LIB_PATH = /opt/altera131/quartus/eda/sim_lib
 # 1 (yes) -> Questa SIM
 # 0 (no)  -> ModelSim
 SIMUL_IS_QUESTA_USED = 0
@@ -36,7 +37,7 @@ SYNTH_CYCLONE5_DEFAULT_ASSIGNMENT_FILE = ./config/boards/cyclone5/assignment_def
 SYNTH_CYCLONE5_CONSTRAINTS_FILE = ./config/boards/cyclone5/DE0_CV_TOP.sdc
 # either empty variable or path ending with \\ i.e. double backslash
 # C:\\"Program Files"\\altera\\13.1\\quartus\\bin\\ 
-SYNTH_TOOL_EXE_DIR_PATH = /opt/altera131/quartus/bin/
+SYNTH_TOOL_EXE_DIR_PATH = /home/milos/.wine/drive_c/altera/13.1/quartus/bin/
 
 
 LIST_FILE_ICARUS = ./config/list-icarus-verilog.lst
@@ -143,7 +144,7 @@ SIMUL_VOPT_ARGS += -o $(SIMUL_OPTIMIZED_DESIGN)
 endif
 
 # vsim (simulator) command line option arguments
-SIMUL_VSIM_ARGS =
+SIMUL_VSIM_ARGS = -L ./altera_mf
 SIMUL_VSIM_ARGS += -lib $(SIMUL_LIB)
 SIMUL_VSIM_ARGS += -wlf $(SIMUL_WAVEFORM_FILE)
 SIMUL_VSIM_ARGS_GUI = $(SIMUL_VSIM_ARGS)
@@ -153,7 +154,12 @@ SIMUL_VSIM_ARGS_SHELL += -do "$(SIMUL_RUN_TCL_SCRIPT)"
 
 simul_all: simul_lib simul_cmp simul_run
 
-simul_lib:
+simul_lib_altera_mf:
+	@echo "$(SIMUL_TAG) Compiling Altera MF library."
+	$(SIMUL_TOOL_VLIB) ./altera_mf
+	$(SIMUL_TOOL_VLOG) -work ./altera_mf $(ALTERA_MF_LIB_PATH)/altera_mf.v
+
+simul_lib: simul_lib_altera_mf
 	@echo "$(SIMUL_TAG) Creating new library $(SIMUL_LIB)."
 	rm -rf $(SIMUL_LIB)
 	$(SIMUL_TOOL_VLIB) $(SIMUL_LIB)
@@ -196,7 +202,7 @@ simul_wave_new: simul_run_sh
 
 simul_clean:
 	@echo "$(SIMUL_TAG) Cleaning directory."
-	rm -fr $(SIMUL_LIB) $(SIMUL_VLOG_LOG_FILE) $(SIMUL_WAVEFORM_FILE) transcript *~
+	rm -fr altera_mf $(SIMUL_LIB) $(SIMUL_VLOG_LOG_FILE) $(SIMUL_WAVEFORM_FILE) transcript *~
 
 # #######################################################################################
 # S Y N T H E S I S
@@ -212,13 +218,15 @@ simul_clean:
 
 SYNTH_TAG = ***[SYNTHESIS]***
 
-SYNTH_TOOL_SH = $(SYNTH_TOOL_EXE_DIR_PATH)quartus_sh
-SYNTH_TOOL_MAP = $(SYNTH_TOOL_EXE_DIR_PATH)quartus_map
-SYNTH_TOOL_FIT = $(SYNTH_TOOL_EXE_DIR_PATH)quartus_fit
-SYNTH_TOOL_ASM = $(SYNTH_TOOL_EXE_DIR_PATH)quartus_asm
-SYNTH_TOOL_STA = $(SYNTH_TOOL_EXE_DIR_PATH)quartus_sta
-SYNTH_TOOL_CDB = $(SYNTH_TOOL_EXE_DIR_PATH)quartus_cdb
-SYNTH_TOOL_PGM = $(SYNTH_TOOL_EXE_DIR_PATH)quartus_pgm
+SYNTH_TOOL_SH = $(SYNTH_TOOL_EXE_DIR_PATH)quartus_sh.exe
+SYNTH_TOOL_MAP = $(SYNTH_TOOL_EXE_DIR_PATH)quartus_map.exe
+SYNTH_TOOL_FIT = $(SYNTH_TOOL_EXE_DIR_PATH)quartus_fit.exe
+SYNTH_TOOL_ASM = $(SYNTH_TOOL_EXE_DIR_PATH)quartus_asm.exe
+SYNTH_TOOL_STA = $(SYNTH_TOOL_EXE_DIR_PATH)quartus_sta.exe
+SYNTH_TOOL_CDB = $(SYNTH_TOOL_EXE_DIR_PATH)quartus_cdb.exe
+SYNTH_TOOL_PGM = $(SYNTH_TOOL_EXE_DIR_PATH)quartus_pgm.exe
+SYNTH_TOOL_JTAGD = jtagd
+#/opt/altera131/quartus/bin/quartus_pgm
 
 SYNTH_SRC_FILE_LIST = $(call create_src_file_list,$(LIST_FILE_SYNTH))
 # $(info $(SYNTH_SRC_FILE_LIST))
@@ -312,6 +320,7 @@ $(SYNTH_PROJECT).eqn: trigger.net.chg $(SYNTH_PROJECT).fit.rpt
 
 synth_pgm: synth_all
 	@echo "$(SYNTH_TAG) Programming the device."
+	$(SYNTH_TOOL_JTAGD)
 	$(SYNTH_TOOL_PGM) $(SYNTH_PGM_ARGS)
 
 smart.log: $(SYNTH_ASSIGNMENT_FILES)
@@ -320,7 +329,7 @@ smart.log: $(SYNTH_ASSIGNMENT_FILES)
 
 synth_clean:
 	@echo "$(SYNTH_TAG) Cleaning directory."
-	rm -rf db incremental_db hc_output
+	rm -rf db altera_mf incremental_db hc_output
 	rm -rf *.qpf *.qdf *.jdi
 	rm -rf  *.qsf *.sdc
 	rm -rf *.eqn *.pin *.sof *.pof
